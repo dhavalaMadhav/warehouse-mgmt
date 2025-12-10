@@ -1,86 +1,46 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import { Plus, Edit, Trash2, Search } from 'lucide-react';
 import axios from 'axios';
-import { Package, Plus, Trash2 } from 'lucide-react';
-import SectionCard from '../components/SectionCard.jsx';
+import SectionCard from '../components/SectionCard';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8585/api';
 
 export default function Items() {
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    code: '',
-    name: '',
-    defaultRate: '',
-    defaultVatPercent: '',
-  });
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
 
   useEffect(() => {
-    const fetchItems = async () => {
-      try {
-        setLoading(true);
-        const { data } = await axios.get(`${API_BASE_URL}/items`);
-        setItems(data);
-      } catch (err) {
-        console.error('Failed to load items', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchItems();
+    loadItems();
   }, []);
 
-  const filteredItems = useMemo(() => {
-    const q = search.toLowerCase();
-    return items.filter(
-      (it) =>
-        it.name?.toLowerCase().includes(q) ||
-        it.code?.toLowerCase().includes(q),
-    );
-  }, [items, search]);
-
-  const updateForm = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
+  const loadItems = async () => {
     try {
-      const payload = {
-        code: formData.code,
-        name: formData.name,
-        defaultRate: parseFloat(formData.defaultRate || '0'),
-        defaultVatPercent: parseFloat(formData.defaultVatPercent || '0'),
-      };
-      const { data } = await axios.post(`${API_BASE_URL}/items`, payload);
-      setItems((prev) => [...prev, data]);
-      setFormData({
-        code: '',
-        name: '',
-        defaultRate: '',
-        defaultVatPercent: '',
-      });
-      setShowForm(false);
+      setLoading(true);
+      const { data } = await axios.get(`${API_BASE_URL}/items`);
+      setItems(data || []);
     } catch (err) {
-      console.error('Failed to create item', err);
-      alert('Failed to create item.');
+      console.error('Failed to load items');
+      setItems([]);
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
+
+  const filteredItems = items.filter(item =>
+    item.code?.toLowerCase().includes(search.toLowerCase()) ||
+    item.name?.toLowerCase().includes(search.toLowerCase())
+  );
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this item?')) return;
     try {
       await axios.delete(`${API_BASE_URL}/items/${id}`);
-      setItems((prev) => prev.filter((it) => it.id !== id));
+      loadItems();
     } catch (err) {
-      console.error('Failed to delete item', err);
-      alert('Delete failed.');
+      alert('Failed to delete item');
     }
   };
 
@@ -94,199 +54,87 @@ export default function Items() {
 
   return (
     <div>
-      {/* Page header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <Package className="w-8 h-8 text-slate-800" />
-          <div>
-            <h1 className="text-3xl md:text-[32px] font-semibold text-slate-900">
-              Items
-            </h1>
-            <p className="text-base text-slate-600">
-              Master data of all SKUs used across warehouse operations.
-            </p>
-          </div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-semibold text-black">Items</h1>
+          <p className="text-black/70">Manage item master data</p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[5px] border border-black/10 bg-black text-white text-sm font-medium hover:bg-slate-800"
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-[5px] hover:bg-black/80"
         >
-          <Plus className="w-5 h-5" />
-          <span className="text-[15px]">New Item</span>
+          <Plus className="w-4 h-4" />
+          Add Item
         </button>
       </div>
 
       <SectionCard>
-        {/* Search bar */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+        {/* Search */}
+        <div className="mb-4 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/50" />
           <input
             type="text"
-            placeholder="Search by code or name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full md:max-w-sm border border-black/15 rounded-[5px] px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-black/40"
+            placeholder="Search items..."
+            className="w-full pl-10 pr-4 py-2 border border-black/20 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-black/30"
           />
-          <span className="text-sm text-slate-500">
-            {filteredItems.length} items
-          </span>
         </div>
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-[15px]">
+          <table className="min-w-full divide-y divide-black/10">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase tracking-wide text-xs">
+                <th className="px-4 py-3 text-left text-xs font-medium text-black/70 uppercase tracking-wide">
                   Code
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase tracking-wide text-xs">
+                <th className="px-4 py-3 text-left text-xs font-medium text-black/70 uppercase tracking-wide">
                   Name
                 </th>
-                <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase tracking-wide text-xs">
-                  Default Rate
+                <th className="px-4 py-3 text-left text-xs font-medium text-black/70 uppercase tracking-wide">
+                  Category
                 </th>
-                <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase tracking-wide text-xs">
-                  VAT %
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase tracking-wide text-xs">
+                <th className="px-4 py-3 text-right text-xs font-medium text-black/70 uppercase tracking-wide">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
+            <tbody className="divide-y divide-black/5 bg-white">
               {filteredItems.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 text-slate-900">{item.code}</td>
-                  <td className="px-4 py-3 text-slate-800">{item.name}</td>
-                  <td className="px-4 py-3 text-right text-slate-900">
-                    {item.defaultRate?.toFixed
-                      ? item.defaultRate.toFixed(2)
-                      : item.defaultRate}
-                  </td>
-                  <td className="px-4 py-3 text-right text-slate-900">
-                    {item.defaultVatPercent}
-                  </td>
+                  <td className="px-4 py-3 text-black font-medium">{item.code}</td>
+                  <td className="px-4 py-3 text-black">{item.name}</td>
+                  <td className="px-4 py-3 text-black/70">{item.category}</td>
                   <td className="px-4 py-3 text-right">
                     <button
-                      onClick={() => handleDelete(item.id)}
-                      className="inline-flex items-center gap-1 text-sm text-rose-600 hover:text-rose-700"
+                      onClick={() => {
+                        setEditingItem(item);
+                        setShowModal(true);
+                      }}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
                     >
-                      <Trash2 className="w-5 h-5" />
-                      <span>Delete</span>
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
                 </tr>
               ))}
-              {filteredItems.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-6 text-center text-sm text-slate-500"
-                  >
-                    No items found. Try adjusting your search or create a new
-                    item.
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
+
+          {filteredItems.length === 0 && (
+            <div className="text-center py-12 text-black/50">
+              No items found
+            </div>
+          )}
         </div>
       </SectionCard>
-
-      {/* Create Item Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-40">
-          <div className="bg-white rounded-[5px] border border-black/15 shadow-lg w-full max-w-md px-6 py-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-slate-900">
-                New Item
-              </h2>
-              <button
-                onClick={() => !saving && setShowForm(false)}
-                className="text-sm text-slate-500 hover:text-slate-800"
-              >
-                Close
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Code
-                </label>
-                <input
-                  type="text"
-                  value={formData.code}
-                  onChange={(e) => updateForm('code', e.target.value)}
-                  className="w-full border border-black/15 rounded-[5px] px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-black/40"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => updateForm('name', e.target.value)}
-                  className="w-full border border-black/15 rounded-[5px] px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-black/40"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Default Rate
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.defaultRate}
-                    onChange={(e) =>
-                      updateForm('defaultRate', e.target.value)
-                    }
-                    className="w-full border border-black/15 rounded-[5px] px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-black/40"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    VAT %
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.defaultVatPercent}
-                    onChange={(e) =>
-                      updateForm('defaultVatPercent', e.target.value)
-                    }
-                    className="w-full border border-black/15 rounded-[5px] px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-black/40"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => !saving && setShowForm(false)}
-                  className="px-4 py-2 text-sm rounded-[5px] border border-black/10 text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 text-sm rounded-[5px] bg-black text-white hover:bg-slate-800 disabled:opacity-60"
-                >
-                  {saving ? 'Saving...' : 'Save Item'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
