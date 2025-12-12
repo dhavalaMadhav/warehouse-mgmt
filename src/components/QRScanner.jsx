@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { QrReader } from 'react-qr-reader';
+import QrReader from "react-web-qr-reader";
 import { X, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -36,11 +36,12 @@ export default function QRScanner({ onScan, onClose }) {
         </div>
 
         <div className="rounded-lg overflow-hidden">
-          <QrReader
-            constraints={{ facingMode }}
-            onResult={handleScan}
-            containerStyle={{ width: '100%' }}
-          />
+<QrReader
+  delay={300}
+  onError={handleError}
+  onScan={handleScan}
+/>
+
         </div>
 
         <p className="text-center text-white mt-4 text-sm">
