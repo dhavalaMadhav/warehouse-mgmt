@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
-import { MapPin, ChevronRight, Calendar, Clock, Building, Layers, Grid3x3, Box, AlertCircle, Filter, Search, Plus } from 'lucide-react';
+import { MapPin, ChevronRight, Calendar, Clock, Building, Layers, Grid3x3, Box, AlertCircle, Filter, Search, Plus, Edit, Trash2, X, Save } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8585/api';
 
@@ -11,6 +11,29 @@ export default function Locations() {
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('all');
   const [expandedNodes, setExpandedNodes] = useState(new Set());
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingLocation, setEditingLocation] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [formData, setFormData] = useState({
+    code: '',
+    name: '',
+    locationType: 'bin',
+    description: '',
+    capacity: '',
+    parentLocationId: null,
+    active: true,
+    notes: ''
+  });
+
+  // Location types with hierarchy information
+  const locationTypes = [
+    { value: 'warehouse', label: 'Warehouse', parentType: null, level: 1 },
+    { value: 'zone', label: 'Zone', parentType: 'warehouse', level: 2 },
+    { value: 'floor', label: 'Floor', parentType: 'zone', level: 3 },
+    { value: 'rack', label: 'Rack', parentType: 'floor', level: 4 },
+    { value: 'bin', label: 'Bin', parentType: 'rack', level: 5 }
+  ];
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 60000);
@@ -18,19 +41,113 @@ export default function Locations() {
   }, []);
 
   useEffect(() => {
-    const fetchLocations = async () => {
-      try {
-        setLoading(true);
-        const { data } = await axios.get(`${API_BASE_URL}/locations`);
-        setLocations(data || []);
-      } catch (err) {
-        console.error('Failed to load locations', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchLocations();
   }, []);
+
+  const fetchLocations = async () => {
+    try {
+      setLoading(true);
+      const { data } = await axios.get(`${API_BASE_URL}/locations`);
+      setLocations(data || []);
+    } catch (err) {
+      console.error('Failed to load locations', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Get available parent locations based on selected type
+  const getAvailableParents = (locationType) => {
+    const typeConfig = locationTypes.find(t => t.value === locationType);
+    if (!typeConfig || !typeConfig.parentType) return [];
+    
+    return locations.filter(loc => 
+      loc.locationType === typeConfig.parentType &&
+      (typeConfig.parentType !== 'warehouse' || !formData.parentLocationId || loc.id !== editingLocation?.id)
+    );
+  };
+
+  // Handle form input changes
+  const handleInputChange = (e) => {
+    const { name, value, type } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? e.target.checked : 
+              type === 'number' ? parseInt(value) || '' : value
+    }));
+  };
+
+  // Handle add location
+  const handleAddLocation = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API_BASE_URL}/locations`, formData);
+      setShowAddModal(false);
+      resetForm();
+      fetchLocations();
+    } catch (err) {
+      console.error('Failed to add location:', err);
+      alert('Failed to add location. Please try again.');
+    }
+  };
+
+  // Handle edit location
+  const handleEditLocation = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.put(`${API_BASE_URL}/locations/${editingLocation.id}`, formData);
+      setShowEditModal(false);
+      setEditingLocation(null);
+      resetForm();
+      fetchLocations();
+    } catch (err) {
+      console.error('Failed to update location:', err);
+      alert('Failed to update location. Please try again.');
+    }
+  };
+
+  // Handle delete location
+  const handleDeleteLocation = async (id) => {
+    if (window.confirm('Are you sure you want to delete this location? This action cannot be undone.')) {
+      try {
+        await axios.delete(`${API_BASE_URL}/locations/${id}`);
+        fetchLocations();
+      } catch (err) {
+        console.error('Failed to delete location:', err);
+        alert('Failed to delete location. Please try again.');
+      }
+    }
+  };
+
+  // Open edit modal with location data
+  const openEditModal = (location) => {
+    setEditingLocation(location);
+    setFormData({
+      code: location.code || '',
+      name: location.name || '',
+      locationType: location.locationType || 'bin',
+      description: location.description || '',
+      capacity: location.capacity || '',
+      parentLocationId: location.parentLocationId || null,
+      active: location.active !== false,
+      notes: location.notes || ''
+    });
+    setShowEditModal(true);
+  };
+
+  // Reset form data
+  const resetForm = () => {
+    setFormData({
+      code: '',
+      name: '',
+      locationType: 'bin',
+      description: '',
+      capacity: '',
+      parentLocationId: null,
+      active: true,
+      notes: ''
+    });
+  };
 
   // Build tree in memory based on parentLocationId
   const tree = useMemo(() => {
@@ -106,29 +223,8 @@ export default function Locations() {
     setExpandedNodes(newExpanded);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-        <div className="relative">
-          {/* Box Border Loading Animation */}
-          <div className="h-24 w-24">
-            {/* Static outer box */}
-            <div className="absolute inset-0 border-2 border-black/10"></div>
-            {/* Rotating border box */}
-            <div className="absolute inset-0 border-2 border-transparent border-t-black border-r-black animate-spin"></div>
-          </div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 font-black text-black tracking-widest text-sm">
-            LOADING
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const renderNode = (node, depth = 0) => {
-    const hasChildren = node.children.filter(child => child.filtered).length > 0;
-    const isExpanded = expandedNodes.has(node.id);
-    
+  // Get location type color and icon
+  const getLocationTypeConfig = (locationType) => {
     const typeConfig = {
       warehouse: { color: 'blue', icon: Building },
       zone: { color: 'emerald', icon: Grid3x3 },
@@ -136,14 +232,19 @@ export default function Locations() {
       rack: { color: 'purple', icon: Box },
       bin: { color: 'gray', icon: MapPin }
     };
-    
-    const config = typeConfig[node.locationType?.toLowerCase()] || { color: 'black', icon: MapPin };
+    return typeConfig[locationType?.toLowerCase()] || { color: 'black', icon: MapPin };
+  };
+
+  const renderNode = (node, depth = 0) => {
+    const hasChildren = node.children.filter(child => child.filtered).length > 0;
+    const isExpanded = expandedNodes.has(node.id);
+    const config = getLocationTypeConfig(node.locationType);
     const Icon = config.icon;
     
     return (
-      <div key={node.id} className="border-b border-black/10 last:border-b-0">
+      <div key={node.id} className="border-b border-black/10 last:border-b-0 group">
         <div 
-          className="group flex items-center py-3 px-4 hover:bg-black/2 transition-colors cursor-pointer"
+          className="flex items-center py-3 px-4 hover:bg-black/2 transition-colors cursor-pointer"
           style={{ marginLeft: depth * 24 }}
           onClick={() => hasChildren && toggleNode(node.id)}
         >
@@ -185,6 +286,31 @@ export default function Locations() {
               </div>
             )}
             <div className={`w-2 h-2 rounded-full ${node.active === false ? 'bg-rose-500' : 'bg-emerald-500'}`}></div>
+            
+            {/* Action buttons */}
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditModal(node);
+                }}
+                className="p-1 hover:bg-black/10 transition-colors"
+                title="Edit Location"
+              >
+                <Edit className="w-4 h-4 text-black/70" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteLocation(node.id);
+                }}
+                className="p-1 hover:bg-black/10 transition-colors"
+                title="Delete Location"
+              >
+                <Trash2 className="w-4 h-4 text-rose-600" />
+              </button>
+            </div>
+            
             {hasChildren && (
               <ChevronRight className={`w-4 h-4 text-black/40 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
             )}
@@ -202,6 +328,25 @@ export default function Locations() {
       </div>
     );
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+        <div className="relative">
+          {/* Box Border Loading Animation */}
+          <div className="h-24 w-24">
+            {/* Static outer box */}
+            <div className="absolute inset-0 border-2 border-black/10"></div>
+            {/* Rotating border box */}
+            <div className="absolute inset-0 border-2 border-transparent border-t-black border-r-black animate-spin"></div>
+          </div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 font-black text-black tracking-widest text-sm">
+            LOADING
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white p-4 md:p-6">
@@ -263,7 +408,10 @@ export default function Locations() {
             <div className="w-2 h-8 bg-black mr-3"></div>
             <h2 className="text-2xl font-black text-black tracking-tight">LOCATION STRUCTURE</h2>
           </div>
-          <button className="group border border-black bg-black text-white px-4 md:px-6 py-3 hover:bg-black/90 transition-all duration-200 flex items-center gap-2">
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="group border border-black bg-black text-white px-4 md:px-6 py-3 hover:bg-black/90 transition-all duration-200 flex items-center gap-2"
+          >
             <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
             <span className="font-bold tracking-wide">ADD LOCATION</span>
           </button>
@@ -340,7 +488,7 @@ export default function Locations() {
               HIERARCHY PATH
             </div>
             <div className="col-span-2 text-xs font-black text-black/80 tracking-widest uppercase">
-              STATUS
+              STATUS & ACTIONS
             </div>
           </div>
         </div>
@@ -358,6 +506,12 @@ export default function Locations() {
                   ? 'Try adjusting your search or filter criteria' 
                   : 'Add your first location to start building your hierarchy'}
               </p>
+              <button 
+                onClick={() => setShowAddModal(true)}
+                className="border border-black bg-black text-white px-6 py-2 font-bold hover:bg-black/90 transition-colors"
+              >
+                CREATE FIRST LOCATION
+              </button>
             </div>
           )}
         </div>
@@ -404,7 +558,7 @@ export default function Locations() {
           <div className="mb-4 md:mb-0">
             <div className="text-sm font-bold text-black tracking-widest">LOCATION MANAGEMENT SYSTEM</div>
             <div className="text-xs text-black/70 font-medium mt-1">
-              Hierarchy depth: {Math.max(...locations.map(l => (l.path || '').split('/').length))} • 
+              Hierarchy depth: {Math.max(...locations.map(l => (l.path || '').split('/').length), 1)} • 
               Version 3.2.1
             </div>
           </div>
@@ -420,6 +574,384 @@ export default function Locations() {
           </div>
         </div>
       </div>
+
+      {/* Add Location Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-black/20 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-black/20 p-6 sticky top-0 bg-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-2 h-8 bg-black mr-3"></div>
+                  <div>
+                    <h3 className="text-xl font-black text-black tracking-tight">ADD NEW LOCATION</h3>
+                    <div className="text-sm text-black/60 font-medium">Add a new location to the hierarchy</div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowAddModal(false);
+                    resetForm();
+                  }}
+                  className="text-black/50 hover:text-black transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <form onSubmit={handleAddLocation}>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Left Column */}
+                  <div>
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        BASIC INFORMATION
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Location Code *</label>
+                          <input
+                            type="text"
+                            name="code"
+                            value={formData.code}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required
+                            placeholder="e.g., WH-01 or AISLE-01"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Location Name *</label>
+                          <input
+                            type="text"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required
+                            placeholder="e.g., Main Warehouse or Picking Zone"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Location Type *</label>
+                          <select
+                            name="locationType"
+                            value={formData.locationType}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required
+                          >
+                            {locationTypes.map((type) => (
+                              <option key={type.value} value={type.value}>
+                                {type.label} (Level {type.level})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        CAPACITY
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-black mb-2">Capacity (units)</label>
+                        <input
+                          type="number"
+                          name="capacity"
+                          value={formData.capacity}
+                          onChange={handleInputChange}
+                          className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          placeholder="e.g., 1000"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column */}
+                  <div>
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        HIERARCHY
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">
+                            Parent Location {formData.locationType !== 'warehouse' ? '*' : ''}
+                          </label>
+                          <select
+                            name="parentLocationId"
+                            value={formData.parentLocationId || ''}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required={formData.locationType !== 'warehouse'}
+                          >
+                            <option value="">Select a parent location</option>
+                            {getAvailableParents(formData.locationType).map((parent) => {
+                              const config = getLocationTypeConfig(parent.locationType);
+                              return (
+                                <option key={parent.id} value={parent.id}>
+                                  [{parent.code}] {parent.name} ({parent.locationType})
+                                </option>
+                              );
+                            })}
+                          </select>
+                          {formData.locationType !== 'warehouse' && (
+                            <div className="text-xs text-black/50 mt-1">
+                              Select a {locationTypes.find(t => t.value === formData.locationType)?.parentType} as parent
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="p-3 bg-black/5 border border-black/10">
+                          <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-2">
+                            Hierarchy Rule
+                          </div>
+                          <div className="text-sm text-black/70">
+                            {formData.locationType === 'warehouse' ? (
+                              "Warehouses are root locations (no parent)"
+                            ) : (
+                              <>
+                                <span className="font-bold">{formData.locationType.toUpperCase()}</span> must be a child of a{' '}
+                                <span className="font-bold">{locationTypes.find(t => t.value === formData.locationType)?.parentType?.toUpperCase()}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-black mb-2">Description</label>
+                      <textarea
+                        name="description"
+                        value={formData.description}
+                        onChange={handleInputChange}
+                        rows="3"
+                        className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                        placeholder="Optional description for this location"
+                      />
+                    </div>
+
+                    <div className="mt-4 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="active"
+                        name="active"
+                        checked={formData.active}
+                        onChange={handleInputChange}
+                        className="w-4 h-4"
+                      />
+                      <label htmlFor="active" className="text-sm font-bold text-black">
+                        Active Location
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="border-t border-black/20 p-6 sticky bottom-0 bg-white">
+                <div className="flex justify-end gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setShowAddModal(false);
+                      resetForm();
+                    }}
+                    className="border border-black/20 px-6 py-3 text-black font-bold hover:border-black/30 transition-colors"
+                  >
+                    CANCEL
+                  </button>
+                  <button 
+                    type="submit"
+                    className="border border-black bg-black text-white px-6 py-3 font-bold hover:bg-black/90 transition-colors flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    CREATE LOCATION
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Location Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-black/20 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-black/20 p-6 sticky top-0 bg-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-2 h-8 bg-black mr-3"></div>
+                  <div>
+                    <h3 className="text-xl font-black text-black tracking-tight">EDIT LOCATION</h3>
+                    <div className="text-sm text-black/60 font-medium">{editingLocation?.code} - {editingLocation?.name}</div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingLocation(null);
+                    resetForm();
+                  }}
+                  className="text-black/50 hover:text-black transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <form onSubmit={handleEditLocation}>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Left Column */}
+                  <div>
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        BASIC INFORMATION
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Location Code *</label>
+                          <input
+                            type="text"
+                            name="code"
+                            value={formData.code}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Location Name *</label>
+                          <input
+                            type="text"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Location Type</label>
+                          <div className="p-3 border border-black/20 bg-black/5">
+                            <div className="font-bold text-black">{formData.locationType.toUpperCase()}</div>
+                            <div className="text-xs text-black/50 mt-1">Type cannot be changed</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        CAPACITY
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-black mb-2">Capacity (units)</label>
+                        <input
+                          type="number"
+                          name="capacity"
+                          value={formData.capacity}
+                          onChange={handleInputChange}
+                          className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column */}
+                  <div>
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        HIERARCHY
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">
+                            Parent Location
+                          </label>
+                          <select
+                            name="parentLocationId"
+                            value={formData.parentLocationId || ''}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            disabled={formData.locationType === 'warehouse'}
+                          >
+                            <option value="">{formData.locationType === 'warehouse' ? 'Warehouse (Root Location)' : 'Select a parent location'}</option>
+                            {getAvailableParents(formData.locationType).map((parent) => {
+                              const config = getLocationTypeConfig(parent.locationType);
+                              return (
+                                <option key={parent.id} value={parent.id}>
+                                  [{parent.code}] {parent.name} ({parent.locationType})
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-black mb-2">Description</label>
+                      <textarea
+                        name="description"
+                        value={formData.description}
+                        onChange={handleInputChange}
+                        rows="3"
+                        className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                      />
+                    </div>
+
+                    <div className="mt-4 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="editActive"
+                        name="active"
+                        checked={formData.active}
+                        onChange={handleInputChange}
+                        className="w-4 h-4"
+                      />
+                      <label htmlFor="editActive" className="text-sm font-bold text-black">
+                        Active Location
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="border-t border-black/20 p-6 sticky bottom-0 bg-white">
+                <div className="flex justify-end gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingLocation(null);
+                      resetForm();
+                    }}
+                    className="border border-black/20 px-6 py-3 text-black font-bold hover:border-black/30 transition-colors"
+                  >
+                    CANCEL
+                  </button>
+                  <button 
+                    type="submit"
+                    className="border border-black bg-black text-white px-6 py-3 font-bold hover:bg-black/90 transition-colors flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    UPDATE LOCATION
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

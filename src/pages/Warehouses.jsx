@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, MapPin, Calendar, Clock, Building, Phone, Mail, Globe, Users, Package, ChevronRight, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin, Calendar, Clock, Building, Phone, Mail, Globe, Users, Package, ChevronRight, AlertCircle, CheckCircle, X, Save } from 'lucide-react';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8585/api';
@@ -9,6 +9,25 @@ export default function Warehouses() {
   const [loading, setLoading] = useState(true);
   const [time, setTime] = useState(new Date());
   const [selectedWarehouse, setSelectedWarehouse] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingWarehouse, setEditingWarehouse] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    code: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    country: 'USA',
+    contactPerson: '',
+    phone: '',
+    email: '',
+    capacity: '',
+    utilization: '',
+    status: 'active',
+    notes: ''
+  });
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 60000);
@@ -25,22 +44,106 @@ export default function Warehouses() {
       const { data } = await axios.get(`${API_BASE_URL}/warehouses`);
       setWarehouses(data || []);
     } catch (err) {
-      console.error('Failed to load warehouses');
+      console.error('Failed to load warehouses:', err);
       setWarehouses([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleAddWarehouse = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API_BASE_URL}/warehouses`, formData);
+      setShowAddModal(false);
+      resetForm();
+      loadWarehouses();
+    } catch (err) {
+      console.error('Failed to add warehouse:', err);
+      alert('Failed to add warehouse. Please try again.');
+    }
+  };
+
+  const handleEditWarehouse = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.put(`${API_BASE_URL}/warehouses/${editingWarehouse.id}`, formData);
+      setShowEditModal(false);
+      setEditingWarehouse(null);
+      resetForm();
+      loadWarehouses();
+    } catch (err) {
+      console.error('Failed to update warehouse:', err);
+      alert('Failed to update warehouse. Please try again.');
+    }
+  };
+
+  const handleDeleteWarehouse = async (id) => {
+    if (window.confirm('Are you sure you want to delete this warehouse?')) {
+      try {
+        await axios.delete(`${API_BASE_URL}/warehouses/${id}`);
+        loadWarehouses();
+      } catch (err) {
+        console.error('Failed to delete warehouse:', err);
+        alert('Failed to delete warehouse. Please try again.');
+      }
+    }
+  };
+
+  const openEditModal = (warehouse) => {
+    setEditingWarehouse(warehouse);
+    setFormData({
+      name: warehouse.name || '',
+      code: warehouse.code || '',
+      address: warehouse.address || '',
+      city: warehouse.city || '',
+      state: warehouse.state || '',
+      zipCode: warehouse.zipCode || '',
+      country: warehouse.country || 'USA',
+      contactPerson: warehouse.contactPerson || '',
+      phone: warehouse.phone || '',
+      email: warehouse.email || '',
+      capacity: warehouse.capacity || '',
+      utilization: warehouse.utilization || '',
+      status: warehouse.status || 'active',
+      notes: warehouse.notes || ''
+    });
+    setShowEditModal(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      code: '',
+      address: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: 'USA',
+      contactPerson: '',
+      phone: '',
+      email: '',
+      capacity: '',
+      utilization: '',
+      status: 'active',
+      notes: ''
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
         <div className="relative">
-          {/* Box Border Loading Animation */}
           <div className="h-24 w-24">
-            {/* Static outer box */}
             <div className="absolute inset-0 border-2 border-black/10"></div>
-            {/* Rotating border box */}
             <div className="absolute inset-0 border-2 border-transparent border-t-black border-r-black animate-spin"></div>
           </div>
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 font-black text-black tracking-widest text-sm">
@@ -90,7 +193,7 @@ export default function Warehouses() {
           </div>
         </div>
 
-        {/* System Status - Green bordered box */}
+        {/* System Status */}
         <div className="flex items-center justify-between mb-8">
           <div className="border border-emerald-300 bg-emerald-50/50 px-4 py-3">
             <div className="flex items-center gap-3">
@@ -111,7 +214,10 @@ export default function Warehouses() {
             <div className="w-2 h-8 bg-black mr-3"></div>
             <h2 className="text-2xl font-black text-black tracking-tight">FACILITY MANAGEMENT</h2>
           </div>
-          <button className="group border border-black bg-black text-white px-4 md:px-6 py-3 hover:bg-black/90 transition-all duration-200 flex items-center gap-2">
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="group border border-black bg-black text-white px-4 md:px-6 py-3 hover:bg-black/90 transition-all duration-200 flex items-center gap-2"
+          >
             <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
             <span className="font-bold tracking-wide">ADD WAREHOUSE</span>
           </button>
@@ -122,8 +228,8 @@ export default function Warehouses() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { icon: Building, label: 'TOTAL WAREHOUSES', value: warehouses.length, color: 'black' },
-              { icon: Package, label: 'ACTIVE FACILITIES', value: warehouses.filter(w => w.status !== 'inactive').length, color: 'emerald' },
-              { icon: Users, label: 'TOTAL CAPACITY', value: '15.2K', unit: 'pallets', color: 'blue' },
+              { icon: Package, label: 'ACTIVE FACILITIES', value: warehouses.filter(w => w.status === 'active').length, color: 'emerald' },
+              { icon: Users, label: 'TOTAL CAPACITY', value: warehouses.reduce((sum, w) => sum + (parseInt(w.capacity) || 0), 0), unit: 'pallets', color: 'blue' },
               { icon: MapPin, label: 'CITIES', value: new Set(warehouses.map(w => w.city)).size, color: 'amber' },
             ].map((stat, idx) => (
               <div key={idx} className="border border-black/20 p-4 hover:border-black/30 transition-colors">
@@ -262,18 +368,14 @@ export default function Warehouses() {
                 </button>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => console.log('Edit', warehouse.id)}
+                    onClick={() => openEditModal(warehouse)}
                     className="p-1 hover:bg-black/10 transition-colors"
                     title="Edit Warehouse"
                   >
                     <Edit className="w-4 h-4 text-black/70" />
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm('Delete this warehouse?')) {
-                        console.log('Delete', warehouse.id);
-                      }
-                    }}
+                    onClick={() => handleDeleteWarehouse(warehouse.id)}
                     className="p-1 hover:bg-black/10 transition-colors"
                     title="Delete Warehouse"
                   >
@@ -295,7 +397,10 @@ export default function Warehouses() {
             <p className="text-sm text-black/60 mb-4">
               Expand your logistics network
             </p>
-            <button className="border border-black bg-black text-white px-6 py-2 font-bold hover:bg-black/90 transition-colors">
+            <button 
+              onClick={() => setShowAddModal(true)}
+              className="border border-black bg-black text-white px-6 py-2 font-bold hover:bg-black/90 transition-colors"
+            >
               CREATE FACILITY
             </button>
           </div>
@@ -309,7 +414,10 @@ export default function Warehouses() {
               <p className="text-sm text-black/60 mb-6">
                 Add your first warehouse to start managing your logistics network
               </p>
-              <button className="border border-black bg-black text-white px-6 py-3 font-bold hover:bg-black/90 transition-colors">
+              <button 
+                onClick={() => setShowAddModal(true)}
+                className="border border-black bg-black text-white px-6 py-3 font-bold hover:bg-black/90 transition-colors"
+              >
                 CREATE FIRST WAREHOUSE
               </button>
             </div>
@@ -339,6 +447,508 @@ export default function Warehouses() {
           </div>
         </div>
       </div>
+
+      {/* Add Warehouse Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-black/20 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-black/20 p-6 sticky top-0 bg-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-2 h-8 bg-black mr-3"></div>
+                  <div>
+                    <h3 className="text-xl font-black text-black tracking-tight">ADD NEW WAREHOUSE</h3>
+                    <div className="text-sm text-black/60 font-medium">Create a new facility in the network</div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowAddModal(false);
+                    resetForm();
+                  }}
+                  className="text-black/50 hover:text-black transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <form onSubmit={handleAddWarehouse}>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Left Column */}
+                  <div>
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        BASIC INFORMATION
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Warehouse Name *</label>
+                          <input
+                            type="text"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Warehouse Code *</label>
+                          <input
+                            type="text"
+                            name="code"
+                            value={formData.code}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Status</label>
+                          <select
+                            name="status"
+                            value={formData.status}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          >
+                            <option value="active">Active</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="inactive">Inactive</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        LOCATION DETAILS
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Address *</label>
+                          <input
+                            type="text"
+                            name="address"
+                            value={formData.address}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-bold text-black mb-2">City *</label>
+                            <input
+                              type="text"
+                              name="city"
+                              value={formData.city}
+                              onChange={handleInputChange}
+                              className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold text-black mb-2">State *</label>
+                            <input
+                              type="text"
+                              name="state"
+                              value={formData.state}
+                              onChange={handleInputChange}
+                              className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-bold text-black mb-2">Zip Code *</label>
+                            <input
+                              type="text"
+                              name="zipCode"
+                              value={formData.zipCode}
+                              onChange={handleInputChange}
+                              className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold text-black mb-2">Country</label>
+                            <input
+                              type="text"
+                              name="country"
+                              value={formData.country}
+                              onChange={handleInputChange}
+                              className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column */}
+                  <div>
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        CONTACT INFORMATION
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Contact Person</label>
+                          <input
+                            type="text"
+                            name="contactPerson"
+                            value={formData.contactPerson}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Phone</label>
+                          <input
+                            type="tel"
+                            name="phone"
+                            value={formData.phone}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Email</label>
+                          <input
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        FACILITY METRICS
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Capacity (pallets)</label>
+                          <input
+                            type="number"
+                            name="capacity"
+                            value={formData.capacity}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Utilization (%)</label>
+                          <input
+                            type="number"
+                            name="utilization"
+                            value={formData.utilization}
+                            onChange={handleInputChange}
+                            min="0"
+                            max="100"
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-black mb-2">Notes</label>
+                      <textarea
+                        name="notes"
+                        value={formData.notes}
+                        onChange={handleInputChange}
+                        rows="3"
+                        className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="border-t border-black/20 p-6 sticky bottom-0 bg-white">
+                <div className="flex justify-end gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setShowAddModal(false);
+                      resetForm();
+                    }}
+                    className="border border-black/20 px-6 py-3 text-black font-bold hover:border-black/30 transition-colors"
+                  >
+                    CANCEL
+                  </button>
+                  <button 
+                    type="submit"
+                    className="border border-black bg-black text-white px-6 py-3 font-bold hover:bg-black/90 transition-colors flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    CREATE WAREHOUSE
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Warehouse Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-black/20 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-black/20 p-6 sticky top-0 bg-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-2 h-8 bg-black mr-3"></div>
+                  <div>
+                    <h3 className="text-xl font-black text-black tracking-tight">EDIT WAREHOUSE</h3>
+                    <div className="text-sm text-black/60 font-medium">{editingWarehouse?.name}</div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingWarehouse(null);
+                    resetForm();
+                  }}
+                  className="text-black/50 hover:text-black transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <form onSubmit={handleEditWarehouse}>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Left Column */}
+                  <div>
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        BASIC INFORMATION
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Warehouse Name *</label>
+                          <input
+                            type="text"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Warehouse Code *</label>
+                          <input
+                            type="text"
+                            name="code"
+                            value={formData.code}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Status</label>
+                          <select
+                            name="status"
+                            value={formData.status}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          >
+                            <option value="active">Active</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="inactive">Inactive</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        LOCATION DETAILS
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Address *</label>
+                          <input
+                            type="text"
+                            name="address"
+                            value={formData.address}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            required
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-bold text-black mb-2">City *</label>
+                            <input
+                              type="text"
+                              name="city"
+                              value={formData.city}
+                              onChange={handleInputChange}
+                              className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold text-black mb-2">State *</label>
+                            <input
+                              type="text"
+                              name="state"
+                              value={formData.state}
+                              onChange={handleInputChange}
+                              className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-bold text-black mb-2">Zip Code *</label>
+                            <input
+                              type="text"
+                              name="zipCode"
+                              value={formData.zipCode}
+                              onChange={handleInputChange}
+                              className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold text-black mb-2">Country</label>
+                            <input
+                              type="text"
+                              name="country"
+                              value={formData.country}
+                              onChange={handleInputChange}
+                              className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column */}
+                  <div>
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        CONTACT INFORMATION
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Contact Person</label>
+                          <input
+                            type="text"
+                            name="contactPerson"
+                            value={formData.contactPerson}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Phone</label>
+                          <input
+                            type="tel"
+                            name="phone"
+                            value={formData.phone}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Email</label>
+                          <input
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <div className="text-xs font-bold text-black/80 tracking-widest uppercase mb-4">
+                        FACILITY METRICS
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Capacity (pallets)</label>
+                          <input
+                            type="number"
+                            name="capacity"
+                            value={formData.capacity}
+                            onChange={handleInputChange}
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-black mb-2">Utilization (%)</label>
+                          <input
+                            type="number"
+                            name="utilization"
+                            value={formData.utilization}
+                            onChange={handleInputChange}
+                            min="0"
+                            max="100"
+                            className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-black mb-2">Notes</label>
+                      <textarea
+                        name="notes"
+                        value={formData.notes}
+                        onChange={handleInputChange}
+                        rows="3"
+                        className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="border-t border-black/20 p-6 sticky bottom-0 bg-white">
+                <div className="flex justify-end gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingWarehouse(null);
+                      resetForm();
+                    }}
+                    className="border border-black/20 px-6 py-3 text-black font-bold hover:border-black/30 transition-colors"
+                  >
+                    CANCEL
+                  </button>
+                  <button 
+                    type="submit"
+                    className="border border-black bg-black text-white px-6 py-3 font-bold hover:bg-black/90 transition-colors flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    UPDATE WAREHOUSE
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Warehouse Detail Modal */}
       {selectedWarehouse && (
@@ -464,7 +1074,10 @@ export default function Warehouses() {
                   CLOSE
                 </button>
                 <button 
-                  onClick={() => console.log('Edit', selectedWarehouse.id)}
+                  onClick={() => {
+                    setSelectedWarehouse(null);
+                    openEditModal(selectedWarehouse);
+                  }}
                   className="border border-black bg-black text-white px-6 py-3 font-bold hover:bg-black/90 transition-colors"
                 >
                   EDIT WAREHOUSE
