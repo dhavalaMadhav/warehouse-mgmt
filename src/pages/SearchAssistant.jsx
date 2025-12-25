@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Sparkles, Send, Bot, ChevronRight, Brain, Mic, MapPin, Warehouse, X, Eye, TrendingUp, Cpu } from 'lucide-react';
-import SectionCard from '../components/SectionCard.jsx';
+import { Search, Sparkles, ChevronRight, Brain, Mic, MapPin, Warehouse, X, Eye, TrendingUp, Cpu } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8585/api';
 
@@ -9,17 +8,25 @@ export default function SearchAssistant() {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [results, setResults] = useState([]);
-  const [chat, setChat] = useState([]);
-  const [chatInput, setChatInput] = useState('');
   const [locations, setLocations] = useState([]);
   const [showAISuggestions, setShowAISuggestions] = useState(true);
-  const chatEndRef = useRef(null);
+  const [loading, setLoading] = useState(false);
 
+  // ✅ REAL API CALL
   useEffect(() => {
-    axios.get(`${API_BASE_URL}/locations`).then(res => setLocations(res.data));
+    setLoading(true);
+    axios.get(`${API_BASE_URL}/locations`)
+      .then(res => {
+        setLocations(res.data || []);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to load locations', err);
+        setLoading(false);
+      });
   }, []);
 
-  // AI-powered suggestions as user types
+  // ✅ REAL DATA FILTERING - No dummy responses
   useEffect(() => {
     if (query.length < 2) {
       setSuggestions([]);
@@ -45,9 +52,9 @@ export default function SearchAssistant() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [query, locations]);
+  }, [query]);
 
-  const handleSearch = async () => {
+  const handleSearch = () => {
     if (!query.trim()) return;
     
     const matches = locations.filter(l => 
@@ -55,46 +62,6 @@ export default function SearchAssistant() {
       l.name?.toLowerCase().includes(query.toLowerCase())
     );
     setResults(matches);
-  };
-
-  const handleChatSend = () => {
-    if (!chatInput.trim()) return;
-
-    const userMsg = { role: 'user', text: chatInput };
-    setChat(prev => [...prev, userMsg]);
-
-    // Simulate AI response
-    setTimeout(() => {
-      const botResponse = generateBotResponse(chatInput);
-      setChat(prev => [...prev, { role: 'bot', text: botResponse }]);
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 800);
-
-    setChatInput('');
-  };
-
-  const generateBotResponse = (input) => {
-    const lower = input.toLowerCase();
-    
-    if (lower.includes('bin') || lower.includes('rack')) {
-      const bins = locations.filter(l => l.locationType === 'BIN');
-      return bins.length 
-        ? `Found ${bins.length} bins. Top: ${bins.slice(0, 3).map(b => b.code).join(', ')}`
-        : 'No bins found in the system.';
-    }
-    
-    if (lower.includes('zone')) {
-      const zones = locations.filter(l => l.locationType === 'ZONE');
-      return zones.length 
-        ? `${zones.length} zones available: ${zones.map(z => z.code).join(', ')}`
-        : 'No zones configured.';
-    }
-
-    if (lower.includes('inventory') || lower.includes('stock')) {
-      return 'Check the Dashboard or Analytics page for real-time inventory levels.';
-    }
-
-    return `I understand you're asking about "${input}". Try searching for bins, racks, zones, or inventory levels.`;
   };
 
   return (
@@ -128,7 +95,9 @@ export default function SearchAssistant() {
           <div className="border border-blue-300 bg-blue-50/50 px-4 py-3">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 bg-blue-600"></div>
-              <span className="font-bold text-blue-800 tracking-widest text-sm">AI ASSISTANT: ACTIVE</span>
+              <span className="font-bold text-blue-800 tracking-widest text-sm">
+                SEARCH: {loading ? 'LOADING...' : 'ACTIVE'}
+              </span>
             </div>
           </div>
           <button
@@ -147,7 +116,7 @@ export default function SearchAssistant() {
           <div className="flex items-center justify-between p-4 border-b border-black/10">
             <div className="flex items-center gap-3">
               <Sparkles className="w-5 h-5 text-amber-600" />
-              <span className="font-bold text-black">QUICK TIPS</span>
+              <span className="font-bold text-black">SEARCH TIPS</span>
             </div>
             <button
               onClick={() => setShowAISuggestions(false)}
@@ -159,275 +128,249 @@ export default function SearchAssistant() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
             <div className="border border-black/5 p-3">
               <div className="flex items-center gap-2 mb-2">
-                <Mic className="w-4 h-4 text-blue-600" />
-                <span className="text-xs font-bold text-black">VOICE SEARCH</span>
+                <Search className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-bold text-black">QUICK SEARCH</span>
               </div>
-              <p className="text-xs text-black/70">Say "Find bin A3"</p>
+              <p className="text-xs text-black/70">Type bin codes like "A3"</p>
             </div>
             <div className="border border-black/5 p-3">
               <div className="flex items-center gap-2 mb-2">
-                <Eye className="w-4 h-4 text-emerald-600" />
-                <span className="text-xs font-bold text-black">VISUAL SEARCH</span>
+                <Warehouse className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-bold text-black">LOCATION TYPE</span>
               </div>
-              <p className="text-xs text-black/70">Upload location photos</p>
+              <p className="text-xs text-black/70">Search by ZONE, RACK, BIN</p>
             </div>
             <div className="border border-black/5 p-3">
               <div className="flex items-center gap-2 mb-2">
                 <TrendingUp className="w-4 h-4 text-purple-600" />
-                <span className="text-xs font-bold text-black">PREDICTIVE</span>
+                <span className="text-xs font-bold text-black">REAL-TIME</span>
               </div>
-              <p className="text-xs text-black/70">Suggest frequently used</p>
+              <p className="text-xs text-black/70">Live location database</p>
             </div>
             <div className="border border-black/5 p-3">
               <div className="flex items-center gap-2 mb-2">
                 <Cpu className="w-4 h-4 text-rose-600" />
-                <span className="text-xs font-bold text-black">REAL-TIME</span>
+                <span className="text-xs font-bold text-black">INSTANT</span>
               </div>
-              <p className="text-xs text-black/70">Live inventory updates</p>
+              <p className="text-xs text-black/70">Results as you type</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column - Search */}
-        <div>
-          <div className="flex items-center mb-6">
-            <div className="w-2 h-8 bg-black mr-3"></div>
-            <h2 className="text-2xl font-black text-black tracking-tight">INTELLIGENT SEARCH</h2>
+      {/* Main Content - Single Column Search */}
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center mb-6">
+          <div className="w-2 h-8 bg-black mr-3"></div>
+          <h2 className="text-2xl font-black text-black tracking-tight">INTELLIGENT SEARCH</h2>
+        </div>
+
+        <div className="border border-black/20 p-6 relative overflow-hidden">
+          {/* Clipped background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-50/10 to-transparent opacity-20" 
+               style={{
+                 clipPath: `polygon(0 0, 100% 0, 100% 50%, 0 100%)`
+               }}>
           </div>
 
-          <div className="border border-black/20 p-6 relative overflow-hidden">
-            {/* Clipped background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/10 to-transparent opacity-20" 
-                 style={{
-                   clipPath: `polygon(0 0, 100% 0, 100% 50%, 0 100%)`
-                 }}>
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-blue-50 rounded-lg">
+                <Search className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-black text-black text-lg">LOCATION FINDER</h3>
+                <p className="text-sm text-black/70 font-medium">
+                  Search {locations.length} locations with predictive suggestions
+                </p>
+              </div>
             </div>
 
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <Search className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="font-black text-black text-lg">AI LOCATION FINDER</h3>
-                  <p className="text-sm text-black/70 font-medium">Smart search with predictive suggestions</p>
+            {/* Search Input */}
+            <div className="relative mb-6 group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-black/50 group-focus-within:text-black transition-colors" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="Type bin, rack, zone, or location code..."
+                className="w-full pl-12 pr-4 py-4 border border-black/20 bg-white text-black text-sm font-medium tracking-wide focus:outline-none focus:border-black/40 transition-colors placeholder:text-black/50"
+                disabled={loading}
+              />
+              <button
+                onClick={handleSearch}
+                disabled={loading}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-black text-white text-xs font-bold hover:bg-black/90 transition-colors disabled:bg-black/50"
+              >
+                SEARCH
+              </button>
+            </div>
+
+            {/* Loading State */}
+            {loading && (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin"></div>
+                  <span className="text-sm font-medium text-black/70">Loading locations...</span>
                 </div>
               </div>
+            )}
 
-              {/* Search Input */}
-              <div className="relative mb-6 group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-black/50 group-focus-within:text-black transition-colors" />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  placeholder="Type bin, rack, zone, or location code..."
-                  className="w-full pl-12 pr-4 py-4 border border-black/20 bg-white text-black text-sm font-medium tracking-wide focus:outline-none focus:border-black/40 transition-colors placeholder:text-black/50"
-                />
-                <button
-                  onClick={handleSearch}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-black text-white text-xs font-bold hover:bg-black/90 transition-colors"
-                >
-                  SEARCH
-                </button>
-              </div>
-
-              {/* AI Suggestions */}
-              {suggestions.length > 0 && (
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-amber-600" />
-                      <span className="text-xs font-bold text-black tracking-widest">AI PREDICTIONS</span>
-                    </div>
-                    <span className="text-xs font-bold text-black/60">{suggestions.length}</span>
+            {/* AI Suggestions */}
+            {!loading && suggestions.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <span className="text-xs font-bold text-black tracking-widest">PREDICTIONS</span>
                   </div>
-                  <div className="space-y-2">
-                    {suggestions.map((s, i) => (
-                      <button
-                        key={i}
-                        onClick={() => { setQuery(s.code); handleSearch(); }}
-                        className="w-full text-left p-3 border border-black/10 hover:border-black/30 bg-white group transition-all duration-200"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-black text-sm">{s.type}</span>
-                          <ChevronRight className="w-4 h-4 text-black/30 group-hover:text-black transition-colors" />
+                  <span className="text-xs font-bold text-black/60">{suggestions.length}</span>
+                </div>
+                <div className="space-y-2">
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setQuery(s.code); handleSearch(); }}
+                      className="w-full text-left p-3 border border-black/10 hover:border-black/30 bg-white group transition-all duration-200"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-black text-sm">{s.type}</span>
+                        <ChevronRight className="w-4 h-4 text-black/30 group-hover:text-black transition-colors" />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-black text-sm font-medium">{s.code}</div>
+                          <div className="text-xs text-black/70 truncate">{s.name}</div>
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div className="text-xs font-bold text-black/60">→</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Empty State - No Data */}
+            {!loading && locations.length === 0 && (
+              <div className="text-center py-12">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-black/5 rounded-full mb-4">
+                  <Warehouse className="w-8 h-8 text-black/30" />
+                </div>
+                <h4 className="font-bold text-black text-lg mb-2">NO LOCATIONS FOUND</h4>
+                <p className="text-sm text-black/60 font-medium">
+                  No warehouse locations available. Please check your backend connection.
+                </p>
+              </div>
+            )}
+
+            {/* Search Results */}
+            {!loading && results.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-black tracking-widest">SEARCH RESULTS</span>
+                  <span className="text-xs font-bold text-black/60">{results.length} FOUND</span>
+                </div>
+                <div className="space-y-3">
+                  {results.map((r, i) => (
+                    <div key={i} className="border border-black/10 p-4 hover:bg-black/2 transition-colors group">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${
+                            r.locationType === 'BIN' ? 'bg-emerald-50' :
+                            r.locationType === 'ZONE' ? 'bg-blue-50' :
+                            r.locationType === 'RACK' ? 'bg-amber-50' : 'bg-slate-50'
+                          }`}>
+                            <Warehouse className={`w-5 h-5 ${
+                              r.locationType === 'BIN' ? 'text-emerald-600' :
+                              r.locationType === 'ZONE' ? 'text-blue-600' :
+                              r.locationType === 'RACK' ? 'text-amber-600' : 'text-slate-600'
+                            }`} />
+                          </div>
                           <div>
-                            <div className="text-black text-sm font-medium">{s.code}</div>
-                            <div className="text-xs text-black/70 truncate">{s.name}</div>
+                            <div className="font-black text-black text-lg tracking-tight">{r.code}</div>
+                            <div className="text-xs font-bold text-black/70 uppercase">{r.locationType}</div>
                           </div>
-                          <div className="text-xs font-bold text-black/60">→</div>
                         </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Search Results */}
-              {results.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-bold text-black tracking-widest">SEARCH RESULTS</span>
-                    <span className="text-xs font-bold text-black/60">{results.length} FOUND</span>
-                  </div>
-                  <div className="space-y-3">
-                    {results.map((r, i) => (
-                      <div key={i} className="border border-black/10 p-4 hover:bg-black/2 transition-colors group">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${
-                              r.locationType === 'BIN' ? 'bg-emerald-50' :
-                              r.locationType === 'ZONE' ? 'bg-blue-50' :
-                              r.locationType === 'RACK' ? 'bg-amber-50' : 'bg-slate-50'
-                            }`}>
-                              <Warehouse className={`w-5 h-5 ${
-                                r.locationType === 'BIN' ? 'text-emerald-600' :
-                                r.locationType === 'ZONE' ? 'text-blue-600' :
-                                r.locationType === 'RACK' ? 'text-amber-600' : 'text-slate-600'
-                              }`} />
-                            </div>
-                            <div>
-                              <div className="font-black text-black text-lg tracking-tight">{r.code}</div>
-                              <div className="text-xs font-bold text-black/70 uppercase">{r.locationType}</div>
-                            </div>
-                          </div>
-                          <MapPin className="w-5 h-5 text-black/30 group-hover:text-black/60 transition-colors" />
-                        </div>
-                        <div className="text-sm text-black/80 font-medium">{r.name}</div>
+                        <MapPin className="w-5 h-5 text-black/30 group-hover:text-black/60 transition-colors" />
                       </div>
-                    ))}
-                  </div>
+                      <div className="text-sm text-black/80 font-medium">{r.name}</div>
+                      {r.warehouseId && (
+                        <div className="mt-2 text-xs text-black/60">
+                          Warehouse ID: {r.warehouseId}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* No Results After Search */}
+            {!loading && query.length >= 2 && results.length === 0 && suggestions.length === 0 && (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-amber-50 rounded-full mb-3">
+                  <Search className="w-6 h-6 text-amber-600" />
+                </div>
+                <h4 className="font-bold text-black text-base mb-1">NO MATCHES FOUND</h4>
+                <p className="text-sm text-black/60 font-medium">
+                  No locations match "{query}". Try a different search term.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right Column - Chat Assistant */}
-        <div>
-          <div className="flex items-center mb-6">
-            <div className="w-2 h-8 bg-black mr-3"></div>
-            <h2 className="text-2xl font-black text-black tracking-tight">AI CHAT ASSISTANT</h2>
-          </div>
-
-          <div className="border border-black/20 h-full flex flex-col relative overflow-hidden">
-            {/* Clipped background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-50/10 to-transparent opacity-20" 
-                 style={{
-                   clipPath: `polygon(0 0, 100% 0, 100% 100%, 0 80%)`
-                 }}>
+        {/* Statistics Panel */}
+        {!loading && locations.length > 0 && (
+          <div className="mt-6 border border-black/10 p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-2 h-6 bg-black mr-3"></div>
+              <h3 className="font-black text-black tracking-tight">DATABASE STATISTICS</h3>
             </div>
-
-            <div className="relative z-10 flex flex-col h-full">
-              {/* Chat Header */}
-              <div className="border-b border-black/10 p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 bg-purple-50 rounded-lg">
-                    <Bot className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-black text-lg">WAREHOUSE ASSISTANT</h3>
-                    <p className="text-sm text-black/70 font-medium">Ask about locations, inventory, or operations</p>
-                  </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 border border-black/5">
+                <div className="text-3xl font-black text-black mb-1">
+                  {locations.length}
                 </div>
+                <div className="text-xs font-bold text-black/60">TOTAL LOCATIONS</div>
               </div>
-
-              {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {chat.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-black/5 rounded-full mb-4">
-                      <Brain className="w-8 h-8 text-black/50" />
-                    </div>
-                    <h4 className="font-bold text-black text-lg mb-2">START A CONVERSATION</h4>
-                    <p className="text-sm text-black/60 font-medium mb-6">
-                      Ask about warehouse locations, inventory status, or operational queries
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => setChatInput('Find bin locations')}
-                        className="border border-black/10 p-3 hover:border-black/30 transition-colors text-sm text-black/80 hover:text-black"
-                      >
-                        Find bin locations
-                      </button>
-                      <button
-                        onClick={() => setChatInput('Show all zones')}
-                        className="border border-black/10 p-3 hover:border-black/30 transition-colors text-sm text-black/80 hover:text-black"
-                      >
-                        Show all zones
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  chat.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] ${
-                        msg.role === 'user' 
-                          ? 'bg-black text-white' 
-                          : 'bg-white border border-black/10'
-                      } p-4`}>
-                        {msg.role === 'bot' && (
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-2 h-2 bg-purple-600"></div>
-                            <span className="text-xs font-bold text-black/60">AI ASSISTANT</span>
-                          </div>
-                        )}
-                        <div className={`${msg.role === 'user' ? 'text-white' : 'text-black'} text-sm font-medium`}>
-                          {msg.text}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-                <div ref={chatEndRef} />
+              <div className="text-center p-4 border border-black/5">
+                <div className="text-3xl font-black text-blue-600 mb-1">
+                  {locations.filter(l => l.locationType === 'ZONE').length}
+                </div>
+                <div className="text-xs font-bold text-black/60">ZONES</div>
               </div>
-
-              {/* Chat Input */}
-              <div className="border-t border-black/10 p-6">
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleChatSend()}
-                    placeholder="Ask about bins, racks, inventory levels..."
-                    className="flex-1 px-4 py-3 border border-black/20 bg-white text-black text-sm font-medium tracking-wide focus:outline-none focus:border-black/40 transition-colors placeholder:text-black/50"
-                  />
-                  <button
-                    onClick={handleChatSend}
-                    className="px-6 py-3 bg-black text-white text-sm font-bold hover:bg-black/90 transition-colors flex items-center gap-2"
-                  >
-                    SEND
-                    <Send className="w-4 h-4" />
-                  </button>
+              <div className="text-center p-4 border border-black/5">
+                <div className="text-3xl font-black text-amber-600 mb-1">
+                  {locations.filter(l => l.locationType === 'RACK').length}
                 </div>
-                <div className="mt-3 text-xs text-black/50 font-medium">
-                  Try: "Find bin A3" • "Show all racks" • "Inventory status" • "Zone layout"
+                <div className="text-xs font-bold text-black/60">RACKS</div>
+              </div>
+              <div className="text-center p-4 border border-black/5">
+                <div className="text-3xl font-black text-emerald-600 mb-1">
+                  {locations.filter(l => l.locationType === 'BIN').length}
                 </div>
+                <div className="text-xs font-bold text-black/60">BINS</div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Footer - Swiss Precision */}
       <div className="mt-8 pt-6 border-t border-black/20">
         <div className="flex flex-col md:flex-row items-center justify-between">
           <div className="mb-4 md:mb-0">
-            <div className="text-sm font-bold text-black tracking-widest">AI SEARCH ASSISTANT</div>
+            <div className="text-sm font-bold text-black tracking-widest">SEARCH ASSISTANT</div>
             <div className="text-xs text-black/70 font-medium mt-1">Version 2.1.0 • Updated: Today</div>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-emerald-600"></div>
-              <span className="text-xs font-bold text-black">AI: ACTIVE</span>
+              <span className="text-xs font-bold text-black">
+                {loading ? 'LOADING...' : locations.length > 0 ? 'CONNECTED' : 'NO DATA'}
+              </span>
             </div>
             <div className="text-xs font-medium text-black/70">
               {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Search, Calendar, Clock, Filter, ChevronRight, Package, Barcode, Tag, AlertCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Calendar, Clock, Filter, ChevronRight, Package, Barcode, Tag, AlertCircle, X } from 'lucide-react';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8585/api';
@@ -12,6 +12,18 @@ export default function Items() {
   const [editingItem, setEditingItem] = useState(null);
   const [time, setTime] = useState(new Date());
   const [filter, setFilter] = useState('all');
+  const [formData, setFormData] = useState({
+    name: '',
+    code: '',
+    description: '',
+    category: '',
+    sku: '',
+    unit: '',
+    subCategory: '',
+    active: true
+  });
+  const [formErrors, setFormErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 60000);
@@ -28,7 +40,7 @@ export default function Items() {
       const { data } = await axios.get(`${API_BASE_URL}/items`);
       setItems(data || []);
     } catch (err) {
-      console.error('Failed to load items');
+      console.error('Failed to load items', err);
       setItems([]);
     } finally {
       setLoading(false);
@@ -37,7 +49,8 @@ export default function Items() {
 
   const filteredItems = items.filter(item =>
     item.code?.toLowerCase().includes(search.toLowerCase()) ||
-    item.name?.toLowerCase().includes(search.toLowerCase())
+    item.name?.toLowerCase().includes(search.toLowerCase()) ||
+    item.description?.toLowerCase().includes(search.toLowerCase())
   ).filter(item => {
     if (filter === 'all') return true;
     if (filter === 'active') return item.active !== false;
@@ -46,12 +59,120 @@ export default function Items() {
   });
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this item?')) return;
+    if (!confirm('Delete this item? This action cannot be undone.')) return;
     try {
       await axios.delete(`${API_BASE_URL}/items/${id}`);
-      loadItems();
+      setItems(items.filter(item => item.id !== id));
+      alert('Item deleted successfully');
     } catch (err) {
-      alert('Failed to delete item');
+      console.error('Delete failed:', err);
+      alert('Failed to delete item. Please try again.');
+    }
+  };
+
+  const openModal = (item = null) => {
+    if (item) {
+      // Editing existing item
+      setEditingItem(item);
+      setFormData({
+        name: item.name || '',
+        code: item.code || '',
+        description: item.description || '',
+        category: item.category || '',
+        sku: item.sku || '',
+        unit: item.unit || '',
+        subCategory: item.subCategory || '',
+        active: item.active !== false
+      });
+    } else {
+      // Creating new item
+      setEditingItem(null);
+      setFormData({
+        name: '',
+        code: '',
+        description: '',
+        category: '',
+        sku: '',
+        unit: '',
+        subCategory: '',
+        active: true
+      });
+    }
+    setFormErrors({});
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingItem(null);
+    setFormData({
+      name: '',
+      code: '',
+      description: '',
+      category: '',
+      sku: '',
+      unit: '',
+      subCategory: '',
+      active: true
+    });
+    setFormErrors({});
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    
+    if (!formData.name?.trim()) {
+      errors.name = 'Item name is required';
+    }
+    
+    if (!formData.code?.trim()) {
+      errors.code = 'Item code is required';
+    }
+    
+    if (!formData.category?.trim()) {
+      errors.category = 'Category is required';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      if (editingItem) {
+        // Update existing item
+        const { data } = await axios.put(`${API_BASE_URL}/items/${editingItem.id}`, formData);
+        setItems(items.map(item => item.id === editingItem.id ? data : item));
+        alert('Item updated successfully');
+      } else {
+        // Create new item
+        const { data } = await axios.post(`${API_BASE_URL}/items`, formData);
+        setItems([...items, data]);
+        alert('Item created successfully');
+      }
+      closeModal();
+      loadItems(); // Reload to get fresh data
+    } catch (err) {
+      console.error('Submit failed:', err);
+      alert(editingItem ? 'Failed to update item' : 'Failed to create item');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error for this field when user starts typing
+    if (formErrors[field]) {
+      setFormErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
@@ -59,11 +180,8 @@ export default function Items() {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
         <div className="relative">
-          {/* Box Border Loading Animation */}
           <div className="h-24 w-24">
-            {/* Static outer box */}
             <div className="absolute inset-0 border-2 border-black/10"></div>
-            {/* Rotating border box */}
             <div className="absolute inset-0 border-2 border-transparent border-t-black border-r-black animate-spin"></div>
           </div>
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 font-black text-black tracking-widest text-sm">
@@ -113,7 +231,7 @@ export default function Items() {
           </div>
         </div>
 
-        {/* System Status - Green bordered box */}
+        {/* System Status */}
         <div className="flex items-center justify-between mb-8">
           <div className="border border-emerald-300 bg-emerald-50/50 px-4 py-3">
             <div className="flex items-center gap-3">
@@ -135,7 +253,7 @@ export default function Items() {
             <h2 className="text-2xl font-black text-black tracking-tight">ITEM CATALOG</h2>
           </div>
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => openModal()}
             className="group border border-black bg-black text-white px-4 md:px-6 py-3 hover:bg-black/90 transition-all duration-200 flex items-center gap-2"
           >
             <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
@@ -220,11 +338,8 @@ export default function Items() {
                 CATEGORY
               </div>
             </div>
-            <div className="col-span-2 text-xs font-black text-black/80 tracking-widest uppercase">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-3 h-3" />
-                STATUS
-              </div>
+            <div className="col-span-2 text-xs font-black text-black/80 tracking-widest uppercase text-right">
+              ACTIONS
             </div>
           </div>
         </div>
@@ -275,7 +390,7 @@ export default function Items() {
 
                 {/* Status & Actions */}
                 <div className="col-span-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-end gap-2">
                     <div className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-bold ${
                       item.active === false 
                         ? 'bg-black/10 text-black/60' 
@@ -284,20 +399,17 @@ export default function Items() {
                       {item.active === false ? 'INACTIVE' : 'ACTIVE'}
                     </div>
                     
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1">
                       <button
-                        onClick={() => {
-                          setEditingItem(item);
-                          setShowModal(true);
-                        }}
-                        className="p-1 hover:bg-black/10 transition-colors"
+                        onClick={() => openModal(item)}
+                        className="p-2 hover:bg-black/10 transition-colors border border-transparent hover:border-black/20"
                         title="Edit"
                       >
                         <Edit className="w-4 h-4 text-black/70" />
                       </button>
                       <button
                         onClick={() => handleDelete(item.id)}
-                        className="p-1 hover:bg-black/10 transition-colors"
+                        className="p-2 hover:bg-rose-50 transition-colors border border-transparent hover:border-rose-200"
                         title="Delete"
                       >
                         <Trash2 className="w-4 h-4 text-rose-600" />
@@ -316,6 +428,14 @@ export default function Items() {
               <p className="text-black/50 text-sm">
                 {search ? 'Try a different search term' : 'Add your first item to get started'}
               </p>
+              {!search && items.length === 0 && (
+                <button
+                  onClick={() => openModal()}
+                  className="mt-4 border border-black bg-black text-white px-6 py-2 text-sm font-bold hover:bg-black/90 transition-colors"
+                >
+                  ADD FIRST ITEM
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -324,16 +444,20 @@ export default function Items() {
       {/* Summary Footer */}
       <div className="mt-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          {/* Summary Cards */}
           {[
             { icon: Package, label: 'TOTAL ITEMS', value: items.length, color: 'black' },
-            { icon: Tag, label: 'CATEGORIES', value: new Set(items.map(i => i.category)).size, color: 'blue' },
+            { icon: Tag, label: 'CATEGORIES', value: new Set(items.map(i => i.category).filter(Boolean)).size, color: 'blue' },
             { icon: AlertCircle, label: 'ACTIVE ITEMS', value: items.filter(i => i.active !== false).length, color: 'emerald' },
             { icon: Filter, label: 'SEARCH RESULTS', value: filteredItems.length, color: 'amber' },
           ].map((stat, idx) => (
             <div key={idx} className="border border-black/20 p-4 hover:border-black/30 transition-colors group">
               <div className="flex items-center justify-between mb-2">
-                <stat.icon className={`w-5 h-5 text-${stat.color}-600`} />
+                <stat.icon className={`w-5 h-5 ${
+                  idx === 0 ? 'text-black' :
+                  idx === 1 ? 'text-blue-600' :
+                  idx === 2 ? 'text-emerald-600' :
+                  'text-amber-600'
+                }`} />
                 <div className={`text-xs font-bold ${
                   idx === 0 ? 'bg-black/10 text-black' :
                   idx === 1 ? 'bg-blue-100 text-blue-700' :
@@ -368,22 +492,15 @@ export default function Items() {
                 <div className="w-2 h-2 bg-emerald-600"></div>
                 <span className="text-xs font-bold text-black">SYSTEM: ONLINE</span>
               </div>
-              <button 
-                onClick={() => window.print()}
-                className="flex items-center gap-1 text-xs font-bold text-black/70 hover:text-black transition-colors group"
-              >
-                EXPORT DATA
-                <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Add/Edit Item Modal (Placeholder) */}
+      {/* Add/Edit Item Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white border border-black/20 max-w-2xl w-full">
+          <div className="bg-white border border-black/20 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="border-b border-black/20 p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
@@ -393,45 +510,169 @@ export default function Items() {
                   </h3>
                 </div>
                 <button 
-                  onClick={() => {
-                    setShowModal(false);
-                    setEditingItem(null);
-                  }}
+                  onClick={closeModal}
                   className="text-black/50 hover:text-black transition-colors"
                 >
-                  ✕
+                  <X className="w-6 h-6" />
                 </button>
               </div>
             </div>
             
-            <div className="p-6">
-              <div className="text-center py-12">
-                <Package className="w-16 h-16 mx-auto text-black/20 mb-4" />
-                <p className="text-black/40 font-bold">ITEM FORM</p>
-                <p className="text-black/50 text-sm mt-2">Connect backend to enable item creation/editing</p>
+            <form onSubmit={handleSubmit} className="p-6">
+              <div className="space-y-4">
+                {/* Item Name */}
+                <div>
+                  <label className="block text-sm font-bold text-black mb-2 tracking-wide">
+                    ITEM NAME *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    className={`w-full border ${formErrors.name ? 'border-rose-500' : 'border-black/20'} p-3 focus:outline-none focus:border-black/40 transition-colors`}
+                    placeholder="Enter item name"
+                  />
+                  {formErrors.name && (
+                    <p className="text-xs text-rose-600 mt-1 font-medium">{formErrors.name}</p>
+                  )}
+                </div>
+
+                {/* Item Code */}
+                <div>
+                  <label className="block text-sm font-bold text-black mb-2 tracking-wide">
+                    ITEM CODE *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => handleInputChange('code', e.target.value)}
+                    className={`w-full border ${formErrors.code ? 'border-rose-500' : 'border-black/20'} p-3 focus:outline-none focus:border-black/40 transition-colors`}
+                    placeholder="e.g., ITEM-001"
+                  />
+                  {formErrors.code && (
+                    <p className="text-xs text-rose-600 mt-1 font-medium">{formErrors.code}</p>
+                  )}
+                </div>
+
+                {/* Category & SKU */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-black mb-2 tracking-wide">
+                      CATEGORY *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.category}
+                      onChange={(e) => handleInputChange('category', e.target.value)}
+                      className={`w-full border ${formErrors.category ? 'border-rose-500' : 'border-black/20'} p-3 focus:outline-none focus:border-black/40 transition-colors`}
+                      placeholder="e.g., Electronics"
+                    />
+                    {formErrors.category && (
+                      <p className="text-xs text-rose-600 mt-1 font-medium">{formErrors.category}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-black mb-2 tracking-wide">
+                      SKU
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.sku}
+                      onChange={(e) => handleInputChange('sku', e.target.value)}
+                      className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40 transition-colors"
+                      placeholder="Stock keeping unit"
+                    />
+                  </div>
+                </div>
+
+                {/* Sub-Category & Unit */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-black mb-2 tracking-wide">
+                      SUB-CATEGORY
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.subCategory}
+                      onChange={(e) => handleInputChange('subCategory', e.target.value)}
+                      className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40 transition-colors"
+                      placeholder="Optional"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-black mb-2 tracking-wide">
+                      UNIT
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.unit}
+                      onChange={(e) => handleInputChange('unit', e.target.value)}
+                      className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40 transition-colors"
+                      placeholder="e.g., PCS, KG, BOX"
+                    />
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-bold text-black mb-2 tracking-wide">
+                    DESCRIPTION
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => handleInputChange('description', e.target.value)}
+                    rows={3}
+                    className="w-full border border-black/20 p-3 focus:outline-none focus:border-black/40 transition-colors resize-none"
+                    placeholder="Optional item description"
+                  />
+                </div>
+
+                {/* Active Status */}
+                <div>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.active}
+                      onChange={(e) => handleInputChange('active', e.target.checked)}
+                      className="w-5 h-5 border-2 border-black/20"
+                    />
+                    <span className="text-sm font-bold text-black tracking-wide">
+                      ITEM IS ACTIVE
+                    </span>
+                  </label>
+                  <p className="text-xs text-black/50 mt-1 ml-8">
+                    Inactive items won't appear in operational screens
+                  </p>
+                </div>
               </div>
-            </div>
+            </form>
             
             <div className="border-t border-black/20 p-6">
               <div className="flex justify-end gap-3">
                 <button 
-                  onClick={() => {
-                    setShowModal(false);
-                    setEditingItem(null);
-                  }}
-                  className="border border-black/20 px-6 py-3 text-black font-bold hover:border-black/30 transition-colors"
+                  type="button"
+                  onClick={closeModal}
+                  disabled={submitting}
+                  className="border border-black/20 px-6 py-3 text-black font-bold hover:border-black/30 transition-colors disabled:opacity-50"
                 >
                   CANCEL
                 </button>
                 <button 
-                  onClick={() => {
-                    // Handle save
-                    setShowModal(false);
-                    setEditingItem(null);
-                  }}
-                  className="border border-black bg-black text-white px-6 py-3 font-bold hover:bg-black/90 transition-colors"
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="border border-black bg-black text-white px-6 py-3 font-bold hover:bg-black/90 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {editingItem ? 'UPDATE ITEM' : 'CREATE ITEM'}
+                  {submitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      {editingItem ? 'UPDATING...' : 'CREATING...'}
+                    </>
+                  ) : (
+                    <>{editingItem ? 'UPDATE ITEM' : 'CREATE ITEM'}</>
+                  )}
                 </button>
               </div>
             </div>

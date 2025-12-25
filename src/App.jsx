@@ -18,38 +18,53 @@ import BinManagement from './pages/BinManagement';
 import Analytics from './pages/Analytics';
 import SearchAssistant from './pages/SearchAssistant';
 import AuditTrail from './pages/AuditTrail';
+import Shipments from './pages/Shipments'; // 👈 new import
+import QAInspections from './pages/QAInspections';
+import StorageAssignments from './pages/StorageAssignments';
+import Inventory from './pages/Inventory';
+
 
 function App() {
   return (
     <Router>
       <Toaster position="top-right" />
       <OfflineIndicator />
-      
+
       <Layout>
         <Routes>
           {/* Main Dashboard */}
           <Route path="/" element={<Dashboard />} />
-          
+
           {/* Master Data */}
           <Route path="/items" element={<Items />} />
           <Route path="/warehouses" element={<Warehouses />} />
           <Route path="/locations" element={<Locations />} />
           <Route path="/rfid-tags" element={<RfidTags />} />
-          
+
+          {/* Inbound Shipments */}
+          <Route path="/shipments" element={<Shipments />} /> {/* 👈 new route */}
+
+
+<Route path="/qa-inspections" element={<QAInspections />} />
+
+<Route path="/storage-assignments" element={<StorageAssignments />} />
+
+<Route path="/inventory" element={<Inventory />} />
+
           {/* Transactions */}
           <Route path="/supplier-gate-in" element={<SupplierGateIn />} />
           <Route path="/customer-gate-out" element={<CustomerGateOut />} />
           <Route path="/internal-transfer" element={<InternalTransfer />} />
-          
+
           {/* Operations */}
           <Route path="/pick-orders" element={<PickOrders />} />
           <Route path="/pack-orders" element={<PackOrders />} />
           <Route path="/bin-management" element={<BinManagement />} />
-          
+
           {/* Analytics & Search - NO PROTECTION */}
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/search" element={<SearchAssistant />} />
-          
+
           {/* Admin - NO PROTECTION */}
           <Route path="/audit-trail" element={<AuditTrail />} />
         </Routes>
